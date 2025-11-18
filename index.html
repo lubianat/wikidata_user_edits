@@ -22,6 +22,9 @@
       background: var(--bg);
       color: var(--fg);
       padding: 1.5rem;
+      padding-bottom: 4.5rem;
+      min-height: 100vh;
+      box-sizing: border-box;
     }
 
     main {
@@ -271,15 +274,36 @@
       margin-top: 0.15rem;
     }
 
+    .site-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.94);
+      border-top: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+      box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.06);
+    }
+
     @media (max-width: 640px) {
       body {
         padding: 1rem;
+        padding-bottom: 4.75rem;
       }
       h1 {
         font-size: 1.3rem;
       }
       .card {
         padding: 0.9rem 1rem;
+      }
+      .site-footer {
+        padding: 0.75rem 1rem;
       }
     }
   </style>
@@ -857,5 +881,8 @@
     el.addEventListener("change", refreshShareLink);
   });
 </script>
+<footer class="site-footer">
+  <span>Code open source on <a href="https://github.com/lubianat/wikidata_user_edits" target="_blank" rel="noopener">GitHub</a>.</span>
+</footer>
 </body>
 </html>
