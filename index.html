@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <title>Wikidata items by Wikimedia user</title>
@@ -82,7 +83,7 @@
       align-items: center;
     }
 
-    .row > * {
+    .row>* {
       flex: 1 1 180px;
     }
 
@@ -145,7 +146,8 @@
       font-size: 0.85rem;
     }
 
-    th, td {
+    th,
+    td {
       padding: 0.4rem 0.45rem;
       border-bottom: 1px solid var(--border);
       text-align: left;
@@ -296,593 +298,599 @@
         padding: 1rem;
         padding-bottom: 4.75rem;
       }
+
       h1 {
         font-size: 1.3rem;
       }
+
       .card {
         padding: 0.9rem 1rem;
       }
+
       .site-footer {
         padding: 0.75rem 1rem;
       }
     }
   </style>
 </head>
+
 <body>
-<main>
-  <header>
-    <h1>Wikidata items by Wikimedia user</h1>
-    <p class="description">
-      Enter a Wikimedia username or a comma-separated list. This page will query Wikidata and list items they
-      <strong>created</strong> and/or <strong>edited</strong>.
-    </p>
-  </header>
+  <main>
+    <header>
+      <h1>Wikidata items by Wikimedia user</h1>
+      <p class="description">
+        Enter a Wikimedia username or a comma-separated list. This page will query Wikidata and list items they
+        <strong>created</strong> and/or <strong>edited</strong>.
+      </p>
+    </header>
 
-  <section class="card">
-    <label for="usernames">Wikimedia username(s)</label>
-    <textarea id="usernames" rows="2" placeholder="Example: JaneDoe, John_Doe"></textarea>
-    <p class="hint">Requests are rate-limited, paged, and cached client-side to stay gentle to Wikimedia APIs.</p>
+    <section class="card">
+      <label for="usernames">Wikimedia username(s)</label>
+      <textarea id="usernames" rows="2" placeholder="Example: JaneDoe, John_Doe"></textarea>
+      <p class="hint">Requests are rate-limited, paged, and cached client-side to stay gentle to Wikimedia APIs.</p>
 
-    <div class="row">
-      <div class="checkbox-group">
-        <label>
-          <input type="checkbox" id="includeCreated" checked />
-          Created items
-        </label>
-        <label>
-          <input type="checkbox" id="includeEdited" checked />
-          Edited items
-        </label>
+      <div class="row">
+        <div class="checkbox-group">
+          <label>
+            <input type="checkbox" id="includeCreated" checked />
+            Created items
+          </label>
+          <label>
+            <input type="checkbox" id="includeEdited" checked />
+            Edited items
+          </label>
+        </div>
+
+        <div>
+          <label for="maxPages">Max history pages per user (safety)</label>
+          <input type="text" id="maxPages" value="3" />
+          <p class="hint">Up to 10 pages; defaults to 3 to avoid heavy queries.</p>
+        </div>
+
+        <div style="flex:0 0 auto;">
+          <button id="runButton">Fetch items</button>
+        </div>
       </div>
-
-      <div>
-        <label for="maxPages">Max history pages per user (safety)</label>
-        <input type="text" id="maxPages" value="3" />
-        <p class="hint">Up to 10 pages; defaults to 3 to avoid heavy queries.</p>
+      <div class="row-split">
+        <div>
+          <label for="startDate">Start date (UTC)</label>
+          <input type="date" id="startDate" />
+          <p class="hint">Optional. Looks back from this date/time to find edits.</p>
+        </div>
+        <div>
+          <label for="endDate">End date (UTC)</label>
+          <input type="date" id="endDate" />
+          <p class="hint">Optional. Limits retrieval to before this date/time.</p>
+        </div>
       </div>
+      <div id="status"></div>
+    </section>
 
-      <div style="flex:0 0 auto;">
-        <button id="runButton">Fetch items</button>
+    <section class="card" id="metricsCard" style="display:none;">
+      <div id="summary"></div>
+      <div id="metrics"></div>
+      <div class="share-row">
+        <input type="text" id="shareLink" readonly placeholder="Copy a link with this view…" />
+        <button id="copyLinkButton">Copy link</button>
       </div>
-    </div>
-    <div class="row-split">
-      <div>
-        <label for="startDate">Start date (UTC)</label>
-        <input type="date" id="startDate" />
-        <p class="hint">Optional. Looks back from this date/time to find edits.</p>
+      <p class="hint">Link keeps usernames/settings. Add <code>autorun=1</code> to run on load.</p>
+    </section>
+
+    <section class="card">
+      <div class="table-wrapper">
+        <table id="resultsTable">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Label (en)</th>
+              <th>Created by</th>
+              <th>Edited by</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
-      <div>
-        <label for="endDate">End date (UTC)</label>
-        <input type="date" id="endDate" />
-        <p class="hint">Optional. Limits retrieval to before this date/time.</p>
-      </div>
-    </div>
-    <div id="status"></div>
-  </section>
+    </section>
+  </main>
 
-  <section class="card" id="metricsCard" style="display:none;">
-    <div id="summary"></div>
-    <div id="metrics"></div>
-    <div class="share-row">
-      <input type="text" id="shareLink" readonly placeholder="Copy a link with this view…" />
-      <button id="copyLinkButton">Copy link</button>
-    </div>
-    <p class="hint">Link keeps usernames/settings. Add <code>autorun=1</code> to run on load.</p>
-  </section>
+  <script>
+    const API = "https://www.wikidata.org/w/api.php";
+    const REQUEST_DELAY_MS = 250;
 
-  <section class="card">
-    <div class="table-wrapper">
-      <table id="resultsTable">
-        <thead>
-        <tr>
-          <th>Item</th>
-          <th>Label (en)</th>
-          <th>Created by</th>
-          <th>Edited by</th>
-        </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
-</main>
+    const $ = (id) => document.getElementById(id);
+    const runButton = $("runButton");
+    const statusEl = $("status");
+    const summaryEl = $("summary");
+    const resultsBody = $("resultsTable").querySelector("tbody");
+    const metricsCard = $("metricsCard");
+    const metricsEl = $("metrics");
+    const shareLinkInput = $("shareLink");
+    const copyLinkButton = $("copyLinkButton");
+    const startDateInput = $("startDate");
+    const endDateInput = $("endDate");
 
-<script>
-  const API = "https://www.wikidata.org/w/api.php";
-  const REQUEST_DELAY_MS = 250;
+    const contribCache = new Map(); // key -> Promise<array of ids>
 
-  const $ = (id) => document.getElementById(id);
-  const runButton = $("runButton");
-  const statusEl = $("status");
-  const summaryEl = $("summary");
-  const resultsBody = $("resultsTable").querySelector("tbody");
-  const metricsCard = $("metricsCard");
-  const metricsEl = $("metrics");
-  const shareLinkInput = $("shareLink");
-  const copyLinkButton = $("copyLinkButton");
-  const startDateInput = $("startDate");
-  const endDateInput = $("endDate");
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const contribCache = new Map(); // key -> Promise<array of ids>
-
-  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  function setStatus(text) {
-    statusEl.textContent = text || "";
-  }
-
-  function sanitizeUsernames(raw) {
-    return raw
-      .split(/[,\n]/)
-      .map((u) => u.trim())
-      .filter(Boolean);
-  }
-
-  function clampPages(raw) {
-    const num = parseInt(raw || "3", 10);
-    if (Number.isNaN(num)) return 3;
-    return Math.min(Math.max(num, 1), 10);
-  }
-
-  function toUtcStartOfDay(dateStr) {
-    if (!dateStr) return null;
-    return new Date(`${dateStr}T00:00:00Z`).toISOString();
-  }
-
-  function toUtcEndOfDay(dateStr) {
-    if (!dateStr) return null;
-    return new Date(`${dateStr}T23:59:59Z`).toISOString();
-  }
-
-  async function gentleFetch(url) {
-    await delay(REQUEST_DELAY_MS);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("HTTP " + res.status + " while requesting " + url);
-    return res.json();
-  }
-
-  async function fetchUserContribs(user, { onlyNew = false, maxPages = 5, startDate, endDate } = {}) {
-    const safePages = clampPages(maxPages);
-    const cacheKey = `${user}:${onlyNew ? "new" : "all"}:${safePages}:${startDate || ""}:${endDate || ""}`;
-    if (contribCache.has(cacheKey)) {
-      return contribCache.get(cacheKey);
+    function setStatus(text) {
+      statusEl.textContent = text || "";
     }
 
-    const promise = (async () => {
-      const items = new Set();
-      let uccontinue;
-      let truncated = false;
-      for (let page = 0; page < safePages; page++) {
+    function sanitizeUsernames(raw) {
+      return raw
+        .split(/[,\n]/)
+        .map((u) => u.trim())
+        .filter(Boolean);
+    }
+
+    function clampPages(raw) {
+      const num = parseInt(raw || "3", 10);
+      if (Number.isNaN(num)) return 3;
+      return Math.min(Math.max(num, 1), 10);
+    }
+
+    function toUtcStartOfDay(dateStr) {
+      if (!dateStr) return null;
+      return new Date(`${dateStr}T00:00:00Z`).toISOString();
+    }
+
+    function toUtcEndOfDay(dateStr) {
+      if (!dateStr) return null;
+      return new Date(`${dateStr}T23:59:59Z`).toISOString();
+    }
+
+    async function gentleFetch(url) {
+      await delay(REQUEST_DELAY_MS);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("HTTP " + res.status + " while requesting " + url);
+      return res.json();
+    }
+
+    async function fetchUserContribs(user, { onlyNew = false, maxPages = 5, startDate, endDate } = {}) {
+      const safePages = clampPages(maxPages);
+      const cacheKey = `${user}:${onlyNew ? "new" : "all"}:${safePages}:${startDate || ""}:${endDate || ""}`;
+      if (contribCache.has(cacheKey)) {
+        return contribCache.get(cacheKey);
+      }
+
+      const promise = (async () => {
+        const items = new Set();
+        let uccontinue;
+        let truncated = false;
+        for (let page = 0; page < safePages; page++) {
+          const params = new URLSearchParams({
+            action: "query",
+            format: "json",
+            list: "usercontribs",
+            ucuser: user,
+            ucnamespace: "0", // items (Qxxx)
+            ucprop: "ids|title",
+            uclimit: "200",
+            origin: "*",
+          });
+          if (onlyNew) params.set("ucshow", "new");
+          if (uccontinue) params.set("uccontinue", uccontinue);
+          if (startDate) params.set("ucend", startDate);
+          if (endDate) params.set("ucstart", endDate);
+
+          const url = API + "?" + params.toString();
+          const data = await gentleFetch(url);
+
+          const contribs = (data.query && data.query.usercontribs) || [];
+          for (const c of contribs) {
+            const title = c.title || "";
+            if (/^Q\d+$/.test(title)) {
+              items.add(title);
+            }
+          }
+
+          if (data.continue && data.continue.uccontinue) {
+            uccontinue = data.continue.uccontinue;
+            if (page === safePages - 1) {
+              truncated = true;
+            }
+          } else {
+            break;
+          }
+        }
+        return { items: Array.from(items), truncated };
+      })();
+
+      contribCache.set(cacheKey, promise);
+      return promise;
+    }
+
+    async function fetchLabels(ids) {
+      const labels = {};
+      const chunkSize = 50;
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
         const params = new URLSearchParams({
-          action: "query",
+          action: "wbgetentities",
           format: "json",
-          list: "usercontribs",
-          ucuser: user,
-          ucnamespace: "0", // items (Qxxx)
-          ucprop: "ids|title",
-          uclimit: "200",
+          ids: chunk.join("|"),
+          props: "labels",
+          languages: "en",
           origin: "*",
         });
-        if (onlyNew) params.set("ucshow", "new");
-        if (uccontinue) params.set("uccontinue", uccontinue);
-        if (startDate) params.set("ucend", startDate);
-        if (endDate) params.set("ucstart", endDate);
-
-        const url = API + "?" + params.toString();
-        const data = await gentleFetch(url);
-
-        const contribs = (data.query && data.query.usercontribs) || [];
-        for (const c of contribs) {
-          const title = c.title || "";
-          if (/^Q\d+$/.test(title)) {
-            items.add(title);
+        const data = await gentleFetch(API + "?" + params.toString());
+        const entities = data.entities || {};
+        for (const [id, ent] of Object.entries(entities)) {
+          if (ent.labels && ent.labels.en) {
+            labels[id] = ent.labels.en.value;
           }
         }
-
-        if (data.continue && data.continue.uccontinue) {
-          uccontinue = data.continue.uccontinue;
-          if (page === safePages - 1) {
-            truncated = true;
-          }
-        } else {
-          break;
-        }
       }
-      return { items: Array.from(items), truncated };
-    })();
-
-    contribCache.set(cacheKey, promise);
-    return promise;
-  }
-
-  async function fetchLabels(ids) {
-    const labels = {};
-    const chunkSize = 50;
-    for (let i = 0; i < ids.length; i += chunkSize) {
-      const chunk = ids.slice(i, i + chunkSize);
-      const params = new URLSearchParams({
-        action: "wbgetentities",
-        format: "json",
-        ids: chunk.join("|"),
-        props: "labels",
-        languages: "en",
-        origin: "*",
-      });
-      const data = await gentleFetch(API + "?" + params.toString());
-      const entities = data.entities || {};
-      for (const [id, ent] of Object.entries(entities)) {
-        if (ent.labels && ent.labels.en) {
-          labels[id] = ent.labels.en.value;
-        }
-      }
-    }
-    return labels;
-  }
-
-  function renderMetricCards(stats) {
-    const cards = document.createElement("div");
-    cards.className = "metric-cards";
-
-    const entries = [
-      { label: "Users", value: stats.usersCount },
-      { label: "Unique items", value: stats.total },
-      ...(stats.includeCreated ? [{ label: "Items created", value: stats.createdCount }] : []),
-      ...(stats.includeEdited ? [{ label: "Items edited", value: stats.editedCount }] : []),
-      ...(stats.includeCreated && stats.includeEdited
-        ? [{ label: "Created & edited", value: stats.overlapCount }]
-        : []),
-    ];
-
-    for (const entry of entries) {
-      const card = document.createElement("div");
-      card.className = "metric-card";
-      const h3 = document.createElement("h3");
-      h3.textContent = entry.label;
-      const value = document.createElement("div");
-      value.className = "value";
-      value.textContent = entry.value.toLocaleString();
-      card.appendChild(h3);
-      card.appendChild(value);
-      cards.appendChild(card);
+      return labels;
     }
 
-    return cards;
-  }
+    function renderMetricCards(stats) {
+      const cards = document.createElement("div");
+      cards.className = "metric-cards";
 
-  function renderMetrics(users, createdByUser, editedByUser, includeCreated, includeEdited, totals) {
-    metricsEl.innerHTML = "";
-    if (!users.length) return;
+      const entries = [
+        { label: "Users", value: stats.usersCount },
+        { label: "Unique items", value: stats.total },
+        ...(stats.includeCreated ? [{ label: "Items created", value: stats.createdCount }] : []),
+        ...(stats.includeEdited ? [{ label: "Items edited", value: stats.editedCount }] : []),
+        ...(stats.includeCreated && stats.includeEdited
+          ? [{ label: "Created & edited", value: stats.overlapCount }]
+          : []),
+      ];
 
-    const stats = {
-      usersCount: users.length,
-      total: totals.total,
-      createdCount: totals.createdCount,
-      editedCount: totals.editedCount,
-      overlapCount: totals.overlapCount,
-      includeCreated,
-      includeEdited,
-    };
+      for (const entry of entries) {
+        const card = document.createElement("div");
+        card.className = "metric-card";
+        const h3 = document.createElement("h3");
+        h3.textContent = entry.label;
+        const value = document.createElement("div");
+        value.className = "value";
+        value.textContent = entry.value.toLocaleString();
+        card.appendChild(h3);
+        card.appendChild(value);
+        cards.appendChild(card);
+      }
 
-    metricsEl.appendChild(renderMetricCards(stats));
+      return cards;
+    }
 
-    const table = document.createElement("table");
-    table.className = "metrics-table";
-    const header = document.createElement("thead");
-    header.innerHTML = `<tr>
+    function renderMetrics(users, createdByUser, editedByUser, includeCreated, includeEdited, totals) {
+      metricsEl.innerHTML = "";
+      if (!users.length) return;
+
+      const stats = {
+        usersCount: users.length,
+        total: totals.total,
+        createdCount: totals.createdCount,
+        editedCount: totals.editedCount,
+        overlapCount: totals.overlapCount,
+        includeCreated,
+        includeEdited,
+      };
+
+      metricsEl.appendChild(renderMetricCards(stats));
+
+      const table = document.createElement("table");
+      table.className = "metrics-table";
+      const header = document.createElement("thead");
+      header.innerHTML = `<tr>
         <th>User</th>
         ${includeCreated ? "<th>Items created</th>" : ""}
         ${includeEdited ? "<th>Items edited</th>" : ""}
         ${(includeCreated && includeEdited) ? "<th>Created & edited</th>" : ""}
       </tr>`;
-    table.appendChild(header);
+      table.appendChild(header);
 
-    const body = document.createElement("tbody");
-    for (const user of users) {
-      const tr = document.createElement("tr");
-      const createdSet = createdByUser.get(user) || new Set();
-      const editedSet = editedByUser.get(user) || new Set();
-      const both = new Set([...createdSet].filter((x) => editedSet.has(x)));
-      tr.insertCell().textContent = user;
-      if (includeCreated) tr.insertCell().textContent = createdSet.size.toLocaleString();
-      if (includeEdited) tr.insertCell().textContent = editedSet.size.toLocaleString();
-      if (includeCreated && includeEdited) tr.insertCell().textContent = both.size.toLocaleString();
-      body.appendChild(tr);
-    }
-    table.appendChild(body);
-    metricsEl.appendChild(table);
-  }
-
-  function buildShareUrl({ autorun = false } = {}) {
-    const users = sanitizeUsernames($("usernames").value);
-    const includeCreated = $("includeCreated").checked;
-    const includeEdited = $("includeEdited").checked;
-    const maxPages = clampPages($("maxPages").value);
-    const startDate = startDateInput.value;
-    const endDate = endDateInput.value;
-
-    const url = new URL(window.location.href);
-    if (users.length) {
-      url.searchParams.set("users", users.join(","));
-    } else {
-      url.searchParams.delete("users");
-    }
-    url.searchParams.set("created", includeCreated ? "1" : "0");
-    url.searchParams.set("edited", includeEdited ? "1" : "0");
-    url.searchParams.set("pages", String(maxPages));
-    if (startDate) {
-      url.searchParams.set("start", startDate);
-    } else {
-      url.searchParams.delete("start");
-    }
-    if (endDate) {
-      url.searchParams.set("end", endDate);
-    } else {
-      url.searchParams.delete("end");
-    }
-    if (autorun) {
-      url.searchParams.set("autorun", "1");
-    } else {
-      url.searchParams.delete("autorun");
-    }
-    return url.toString();
-  }
-
-  function refreshShareLink() {
-    shareLinkInput.value = buildShareUrl();
-  }
-
-  function renderTable(itemsMap) {
-    resultsBody.innerHTML = "";
-    const rows = Array.from(itemsMap.values()).sort((a, b) => {
-      const na = parseInt(a.id.slice(1), 10);
-      const nb = parseInt(b.id.slice(1), 10);
-      return na - nb;
-    });
-
-    for (const item of rows) {
-      const tr = document.createElement("tr");
-
-      const linkCell = document.createElement("td");
-      const a = document.createElement("a");
-      a.href = "https://www.wikidata.org/wiki/" + item.id;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.textContent = item.id;
-      linkCell.appendChild(a);
-
-      const labelCell = document.createElement("td");
-      labelCell.textContent = item.label || "";
-
-      const createdCell = document.createElement("td");
-      const editedCell = document.createElement("td");
-
-      const createdBy = Array.from(item.createdBy || []);
-      const editedBy = Array.from(item.editedBy || []);
-
-      if (createdBy.length) {
-        createdBy.forEach((u) => {
-          const span = document.createElement("span");
-          span.className = "pill";
-          span.textContent = u;
-          createdCell.appendChild(span);
-        });
-      }
-
-      if (editedBy.length) {
-        editedBy.forEach((u) => {
-          const span = document.createElement("span");
-          span.className = "pill";
-          span.textContent = u;
-          editedCell.appendChild(span);
-        });
-      }
-
-      tr.appendChild(linkCell);
-      tr.appendChild(labelCell);
-      tr.appendChild(createdCell);
-      tr.appendChild(editedCell);
-
-      resultsBody.appendChild(tr);
-    }
-  }
-
-  async function run() {
-    const raw = $("usernames").value;
-    const includeCreated = $("includeCreated").checked;
-    const includeEdited = $("includeEdited").checked;
-    const maxPages = clampPages($("maxPages").value);
-    const startDateRaw = startDateInput.value;
-    const endDateRaw = endDateInput.value;
-    const ucend = toUtcStartOfDay(startDateRaw); // lower bound (older)
-    const ucstart = toUtcEndOfDay(endDateRaw); // upper bound (newer)
-
-    const users = sanitizeUsernames(raw);
-
-    summaryEl.textContent = "";
-    resultsBody.innerHTML = "";
-    metricsEl.innerHTML = "";
-    metricsCard.style.display = "none";
-
-    if (!users.length) {
-      setStatus("Please enter at least one username.");
-      return;
-    }
-    if (!includeCreated && !includeEdited) {
-      setStatus("Select at least one of: Created items, Edited items.");
-      return;
-    }
-    if (ucstart && ucend && new Date(ucstart) < new Date(ucend)) {
-      setStatus("End date must be on/after the start date.");
-      return;
-    }
-
-    runButton.disabled = true;
-    setStatus("Fetching contributions gently…");
-
-    const itemsMap = new Map(); // id -> {id, createdBy:Set, editedBy:Set}
-    const createdByUser = new Map();
-    const editedByUser = new Map();
-    const truncatedNotes = [];
-
-    try {
+      const body = document.createElement("tbody");
       for (const user of users) {
-        if (includeCreated) {
-          setStatus(`Fetching created items for ${user}…`);
-          const { items: created, truncated } = await fetchUserContribs(user, {
-            onlyNew: true,
-            maxPages,
-            startDate: ucend,
-            endDate: ucstart,
-          });
-          if (truncated) truncatedNotes.push(`${user} (created)`);
-          createdByUser.set(user, new Set(created));
-          created.forEach((id) => {
-            if (!itemsMap.has(id)) {
-              itemsMap.set(id, { id, createdBy: new Set(), editedBy: new Set() });
-            }
-            itemsMap.get(id).createdBy.add(user);
-          });
-        }
-
-        if (includeEdited) {
-          setStatus(`Fetching edited items for ${user}…`);
-          const { items: edited, truncated } = await fetchUserContribs(user, {
-            onlyNew: false,
-            maxPages,
-            startDate: ucend,
-            endDate: ucstart,
-          });
-          if (truncated) truncatedNotes.push(`${user} (edited)`);
-          editedByUser.set(user, new Set(edited));
-          edited.forEach((id) => {
-            if (!itemsMap.has(id)) {
-              itemsMap.set(id, { id, createdBy: new Set(), editedBy: new Set() });
-            }
-            itemsMap.get(id).editedBy.add(user);
-          });
-        }
+        const tr = document.createElement("tr");
+        const createdSet = createdByUser.get(user) || new Set();
+        const editedSet = editedByUser.get(user) || new Set();
+        const both = new Set([...createdSet].filter((x) => editedSet.has(x)));
+        tr.insertCell().textContent = user;
+        if (includeCreated) tr.insertCell().textContent = createdSet.size.toLocaleString();
+        if (includeEdited) tr.insertCell().textContent = editedSet.size.toLocaleString();
+        if (includeCreated && includeEdited) tr.insertCell().textContent = both.size.toLocaleString();
+        body.appendChild(tr);
       }
+      table.appendChild(body);
+      metricsEl.appendChild(table);
+    }
 
-      const allIds = Array.from(itemsMap.keys());
-      if (!allIds.length) {
-        setStatus("No items found for the selected criteria.");
+    function buildShareUrl({ autorun = false } = {}) {
+      const users = sanitizeUsernames($("usernames").value);
+      const includeCreated = $("includeCreated").checked;
+      const includeEdited = $("includeEdited").checked;
+      const maxPages = clampPages($("maxPages").value);
+      const startDate = startDateInput.value;
+      const endDate = endDateInput.value;
+
+      const url = new URL(window.location.href);
+      if (users.length) {
+        url.searchParams.set("users", users.join(","));
+      } else {
+        url.searchParams.delete("users");
+      }
+      url.searchParams.set("created", includeCreated ? "1" : "0");
+      url.searchParams.set("edited", includeEdited ? "1" : "0");
+      url.searchParams.set("pages", String(maxPages));
+      if (startDate) {
+        url.searchParams.set("start", startDate);
+      } else {
+        url.searchParams.delete("start");
+      }
+      if (endDate) {
+        url.searchParams.set("end", endDate);
+      } else {
+        url.searchParams.delete("end");
+      }
+      if (autorun) {
+        url.searchParams.set("autorun", "1");
+      } else {
+        url.searchParams.delete("autorun");
+      }
+      return url.toString();
+    }
+
+    function refreshShareLink() {
+      shareLinkInput.value = buildShareUrl();
+    }
+
+    function renderTable(itemsMap) {
+      resultsBody.innerHTML = "";
+      const rows = Array.from(itemsMap.values()).sort((a, b) => {
+        const na = parseInt(a.id.slice(1), 10);
+        const nb = parseInt(b.id.slice(1), 10);
+        return na - nb;
+      });
+
+      for (const item of rows) {
+        const tr = document.createElement("tr");
+
+        const linkCell = document.createElement("td");
+        const a = document.createElement("a");
+        a.href = "https://www.wikidata.org/wiki/" + item.id;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = item.id;
+        linkCell.appendChild(a);
+
+        const labelCell = document.createElement("td");
+        labelCell.textContent = item.label || "";
+
+        const createdCell = document.createElement("td");
+        const editedCell = document.createElement("td");
+
+        const createdBy = Array.from(item.createdBy || []);
+        const editedBy = Array.from(item.editedBy || []);
+
+        if (createdBy.length) {
+          createdBy.forEach((u) => {
+            const span = document.createElement("span");
+            span.className = "pill";
+            span.textContent = u;
+            createdCell.appendChild(span);
+          });
+        }
+
+        if (editedBy.length) {
+          editedBy.forEach((u) => {
+            const span = document.createElement("span");
+            span.className = "pill";
+            span.textContent = u;
+            editedCell.appendChild(span);
+          });
+        }
+
+        tr.appendChild(linkCell);
+        tr.appendChild(labelCell);
+        tr.appendChild(createdCell);
+        tr.appendChild(editedCell);
+
+        resultsBody.appendChild(tr);
+      }
+    }
+
+    async function run() {
+      const raw = $("usernames").value;
+      const includeCreated = $("includeCreated").checked;
+      const includeEdited = $("includeEdited").checked;
+      const maxPages = clampPages($("maxPages").value);
+      const startDateRaw = startDateInput.value;
+      const endDateRaw = endDateInput.value;
+      const ucend = toUtcStartOfDay(startDateRaw); // lower bound (older)
+      const ucstart = toUtcEndOfDay(endDateRaw); // upper bound (newer)
+
+      const users = sanitizeUsernames(raw);
+
+      summaryEl.textContent = "";
+      resultsBody.innerHTML = "";
+      metricsEl.innerHTML = "";
+      metricsCard.style.display = "none";
+
+      if (!users.length) {
+        setStatus("Please enter at least one username.");
+        return;
+      }
+      if (!includeCreated && !includeEdited) {
+        setStatus("Select at least one of: Created items, Edited items.");
+        return;
+      }
+      if (ucstart && ucend && new Date(ucstart) < new Date(ucend)) {
+        setStatus("End date must be on/after the start date.");
         return;
       }
 
-      setStatus("Fetching labels…");
-      const labels = await fetchLabels(allIds);
-      for (const id of allIds) {
-        const item = itemsMap.get(id);
-        item.label = labels[id] || "";
+      runButton.disabled = true;
+      setStatus("Fetching contributions gently…");
+
+      const itemsMap = new Map(); // id -> {id, createdBy:Set, editedBy:Set}
+      const createdByUser = new Map();
+      const editedByUser = new Map();
+      const truncatedNotes = [];
+
+      try {
+        for (const user of users) {
+          if (includeCreated) {
+            setStatus(`Fetching created items for ${user}…`);
+            const { items: created, truncated } = await fetchUserContribs(user, {
+              onlyNew: true,
+              maxPages,
+              startDate: ucend,
+              endDate: ucstart,
+            });
+            if (truncated) truncatedNotes.push(`${user} (created)`);
+            createdByUser.set(user, new Set(created));
+            created.forEach((id) => {
+              if (!itemsMap.has(id)) {
+                itemsMap.set(id, { id, createdBy: new Set(), editedBy: new Set() });
+              }
+              itemsMap.get(id).createdBy.add(user);
+            });
+          }
+
+          if (includeEdited) {
+            setStatus(`Fetching edited items for ${user}…`);
+            const { items: edited, truncated } = await fetchUserContribs(user, {
+              onlyNew: false,
+              maxPages,
+              startDate: ucend,
+              endDate: ucstart,
+            });
+            if (truncated) truncatedNotes.push(`${user} (edited)`);
+            editedByUser.set(user, new Set(edited));
+            edited.forEach((id) => {
+              if (!itemsMap.has(id)) {
+                itemsMap.set(id, { id, createdBy: new Set(), editedBy: new Set() });
+              }
+              itemsMap.get(id).editedBy.add(user);
+            });
+          }
+        }
+
+        const allIds = Array.from(itemsMap.keys());
+        if (!allIds.length) {
+          setStatus("No items found for the selected criteria.");
+          return;
+        }
+
+        setStatus("Fetching labels…");
+        const labels = await fetchLabels(allIds);
+        for (const id of allIds) {
+          const item = itemsMap.get(id);
+          item.label = labels[id] || "";
+        }
+
+        const total = allIds.length;
+        const createdCount = Array.from(itemsMap.values()).filter((i) => i.createdBy.size > 0).length;
+        const editedCount = Array.from(itemsMap.values()).filter((i) => i.editedBy.size > 0).length;
+        const overlapCount = Array.from(itemsMap.values()).filter(
+          (i) => i.createdBy.size > 0 && i.editedBy.size > 0
+        ).length;
+
+        const rangeLabel =
+          startDateRaw || endDateRaw
+            ? `Range: ${startDateRaw || "…"} → ${endDateRaw || "now"}`
+            : "Latest edits (API chronological order)";
+
+        summaryEl.textContent =
+          `${rangeLabel} · Users: ${users.join(", ")} · Unique items: ${total}` +
+          (includeCreated ? ` · Created: ${createdCount}` : "") +
+          (includeEdited ? ` · Edited: ${editedCount}` : "") +
+          (includeCreated && includeEdited ? ` · Both: ${overlapCount}` : "") +
+          ` · Max pages/user: ${maxPages}`;
+
+        const note = document.createElement("div");
+        note.className = "note-muted";
+        if (truncatedNotes.length) {
+          note.textContent = `Showing up to ${maxPages} pages/user; incomplete for: ${truncatedNotes.join(", ")}.`;
+        } else {
+          note.textContent = "Complete within current page limit.";
+        }
+        summaryEl.appendChild(note);
+
+        renderMetrics(
+          users,
+          createdByUser,
+          editedByUser,
+          includeCreated,
+          includeEdited,
+          { total, createdCount, editedCount, overlapCount }
+        );
+        renderTable(itemsMap);
+        refreshShareLink();
+        metricsCard.style.display = "block";
+        setStatus("Done. Data loaded gently (cached until refresh).");
+      } catch (err) {
+        console.error(err);
+        setStatus("Error: " + err.message);
+      } finally {
+        runButton.disabled = false;
       }
+    }
 
-      const total = allIds.length;
-      const createdCount = Array.from(itemsMap.values()).filter((i) => i.createdBy.size > 0).length;
-      const editedCount = Array.from(itemsMap.values()).filter((i) => i.editedBy.size > 0).length;
-      const overlapCount = Array.from(itemsMap.values()).filter(
-        (i) => i.createdBy.size > 0 && i.editedBy.size > 0
-      ).length;
+    runButton.addEventListener("click", () => {
+      run();
+    });
 
-      const rangeLabel =
-        startDateRaw || endDateRaw
-          ? `Range: ${startDateRaw || "…"} → ${endDateRaw || "now"}`
-          : "Latest edits (API chronological order)";
-
-      summaryEl.textContent =
-        `${rangeLabel} · Users: ${users.join(", ")} · Unique items: ${total}` +
-        (includeCreated ? ` · Created: ${createdCount}` : "") +
-        (includeEdited ? ` · Edited: ${editedCount}` : "") +
-        (includeCreated && includeEdited ? ` · Both: ${overlapCount}` : "") +
-        ` · Max pages/user: ${maxPages}`;
-
-      const note = document.createElement("div");
-      note.className = "note-muted";
-      if (truncatedNotes.length) {
-        note.textContent = `Showing up to ${maxPages} pages/user; incomplete for: ${truncatedNotes.join(", ")}.`;
-      } else {
-        note.textContent = "Complete within current page limit.";
+    // Enter to run when textarea has a single line
+    $("usernames").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        run();
       }
-      summaryEl.appendChild(note);
+    });
 
-      renderMetrics(
-        users,
-        createdByUser,
-        editedByUser,
-        includeCreated,
-        includeEdited,
-        { total, createdCount, editedCount, overlapCount }
-      );
-      renderTable(itemsMap);
+    copyLinkButton.addEventListener("click", async () => {
+      const link = shareLinkInput.value || buildShareUrl();
+      if (!link) return;
+      try {
+        await navigator.clipboard.writeText(link);
+        setStatus("Shareable link copied to clipboard.");
+      } catch (err) {
+        console.error(err);
+        setStatus("Copy failed. You can manually copy the link field.");
+      }
+    });
+
+    // Prefill from URL parameters for sharing
+    (function restoreFromQuery() {
+      const params = new URLSearchParams(window.location.search);
+      const users = params.get("users");
+      if (users) {
+        $("usernames").value = users;
+      }
+      const created = params.get("created");
+      const edited = params.get("edited");
+      const pages = params.get("pages");
+      const start = params.get("start");
+      const end = params.get("end");
+      if (created !== null) $("includeCreated").checked = created !== "0";
+      if (edited !== null) $("includeEdited").checked = edited !== "0";
+      if (pages !== null) $("maxPages").value = clampPages(pages);
+      if (start) startDateInput.value = start;
+      if (end) endDateInput.value = end;
+
       refreshShareLink();
-      metricsCard.style.display = "block";
-      setStatus("Done. Data loaded gently (cached until refresh).");
-    } catch (err) {
-      console.error(err);
-      setStatus("Error: " + err.message);
-    } finally {
-      runButton.disabled = false;
-    }
-  }
 
-  runButton.addEventListener("click", () => {
-    run();
-  });
+      if (params.get("autorun") === "1") {
+        run();
+      }
+    })();
 
-  // Enter to run when textarea has a single line
-  $("usernames").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      run();
-    }
-  });
-
-  copyLinkButton.addEventListener("click", async () => {
-    const link = shareLinkInput.value || buildShareUrl();
-    if (!link) return;
-    try {
-      await navigator.clipboard.writeText(link);
-      setStatus("Shareable link copied to clipboard.");
-    } catch (err) {
-      console.error(err);
-      setStatus("Copy failed. You can manually copy the link field.");
-    }
-  });
-
-  // Prefill from URL parameters for sharing
-  (function restoreFromQuery() {
-    const params = new URLSearchParams(window.location.search);
-    const users = params.get("users");
-    if (users) {
-      $("usernames").value = users;
-    }
-    const created = params.get("created");
-    const edited = params.get("edited");
-    const pages = params.get("pages");
-    const start = params.get("start");
-    const end = params.get("end");
-    if (created !== null) $("includeCreated").checked = created !== "0";
-    if (edited !== null) $("includeEdited").checked = edited !== "0";
-    if (pages !== null) $("maxPages").value = clampPages(pages);
-    if (start) startDateInput.value = start;
-    if (end) endDateInput.value = end;
-
-    refreshShareLink();
-
-    if (params.get("autorun") === "1") {
-      run();
-    }
-  })();
-
-  // Keep share link in sync when form changes
-  ["usernames", "includeCreated", "includeEdited", "maxPages", "startDate", "endDate"].forEach((id) => {
-    const el = $(id);
-    if (!el) return;
-    el.addEventListener("input", refreshShareLink);
-    el.addEventListener("change", refreshShareLink);
-  });
-</script>
-<footer class="site-footer">
-  <span>Code open source on <a href="https://github.com/lubianat/wikidata_user_edits" target="_blank" rel="noopener">GitHub</a>.</span>
-</footer>
+    // Keep share link in sync when form changes
+    ["usernames", "includeCreated", "includeEdited", "maxPages", "startDate", "endDate"].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener("input", refreshShareLink);
+      el.addEventListener("change", refreshShareLink);
+    });
+  </script>
+  <footer class="site-footer">
+    <span>Vibe-coded. Likely broken. Code open source on <a href="https://github.com/lubianat/wikidata_user_edits"
+        target="_blank" rel="noopener">GitHub</a>.</span>
+  </footer>
 </body>
+
 </html>
